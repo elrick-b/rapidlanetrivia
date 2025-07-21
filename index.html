@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Runner Quiz Game with Play & Reset</title>
+<style>
+  body {
+    margin: 0;
+    background: #87CEEB;
+    overflow: hidden;
+    font-family: Arial, sans-serif;
+    user-select: none;
+  }
+  canvas {
+    display: block;
+    background: #444;
+    margin: auto;
+  }
+  #controls {
+    position: fixed;
+    top: 10px; /* moved up for spacing */
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1000;
+  }
+  button {
+    font-size: 18px;
+    padding: 10px 30px;
+    margin: 0 10px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    background-color: #28a745;
+    color: white;
+    box-shadow: 0 4px 7px rgba(0,0,0,0.3);
+  }
+  button:disabled {
+    background-color: #888;
+    cursor: not-allowed;
+  }
+</style>
+</head>
+<body>
+<div id="controls">
+  <button id="playBtn">Play</button>
+  <button id="resetBtn" style="display:none;">Reset</button>
+</div>
+
+<canvas id="game" width="400" height="600"></canvas>
+<script>
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+
+const playBtn = document.getElementById('playBtn');
+const resetBtn = document.getElementById('resetBtn');
+
+const laneX = [100, 300]; // two lane x positions
+const playerRadius = 20;
+
+let playerLane = 0;
+let playerY = canvas.height - 50;
+
+let gameOver = false;
+let score = 0;
+let currentQuestionIndex = 0;
+let answers = [];
+let currentQuestion = "";
+
+const questions = [
+  { question: "2 + 2", correct: "4", wrong: "5" },
+  { question: "Capital of Japan?", correct: "Tokyo", wrong: "Seoul" },
+  { question: "3 x 3", correct: "9", wrong: "6" },
+  { question: "1 x 1", correct: "1", wrong: "2" },
+  { question: "Also know as Sikin Pares.", correct: "Diwata", wrong: "Vice Ganda" },
+  { question: "13 + 2 - 3", correct: "12", wrong: "11" }
+];
+
+function spawnQuestion() {
+  if (currentQuestionIndex >= questions.length) {
+    currentQuestion = "You finished all questions! 🎉";
+    answers = [];
+    return;
+  }
+
+  const q = questions[currentQuestionIndex];
+  currentQuestionIndex++;
+
+  const correctLane = Math.floor(Math.random() * 2);
+  const wrongLane = 1 - correctLane;
+
+  answers = [];
+
+  answers.push({
+    text: q.correct,
+    lane: correctLane,
+    y: 0,
+    correct: true,
+  });
+
+  answers.push({
+    text: q.wrong,
+    lane: wrongLane,
+    y: 0,
+    correct: false,
+  });
+
+  currentQuestion = q.question;
+}
+
+function drawPlayer() {
+  ctx.fillStyle = "red";
+  ctx.beginPath();
+  ctx.arc(laneX[playerLane], playerY, playerRadius, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function drawQuestion() {
+  ctx.fillStyle = "white";
+  ctx.font = "24px Arial";
+  ctx.textAlign = "center";
+  ctx.fillText(currentQuestion, canvas.width / 2, 80); // moved down to avoid buttons
+}
+
+function drawAnswers() {
+  ctx.font = "20px Arial";
+  answers.forEach((a) => {
+    ctx.fillStyle = a.correct ? "lime" : "yellow";
+    ctx.textAlign = "center";
+    ctx.fillText(a.text, laneX[a.lane], a.y);
+  });
+}
+
+function drawRoad() {
+  ctx.fillStyle = "#555";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  ctx.strokeStyle = "white";
+  ctx.lineWidth = 4;
+  const midX = (laneX[0] + laneX[1]) / 2;
+  ctx.setLineDash([20, 20]);
+  ctx.beginPath();
+  ctx.moveTo(midX, 0);
+  ctx.lineTo(midX, canvas.height);
+  ctx.stroke();
+  ctx.setLineDash([]);
+}
+
+function drawScore() {
+  ctx.fillStyle = "white";
+  ctx.font = "20px Arial";
+  ctx.textAlign = "left";
+  ctx.fillText("Score: " + score, 10, canvas.height - 10);
+}
+
+function drawGameOver() {
+  ctx.fillStyle = "red";
+  ctx.font = "48px Arial";
+  ctx.textAlign = "center";
+  ctx.fillText("Game Over!", canvas.width / 2, canvas.height / 2);
+}
+
+function update(delta) {
+  if (gameOver) return;
+
+  answers.forEach((a) => {
+    a.y += 150 * delta;
+  });
+
+  answers.forEach((a) => {
+    if (
+      Math.abs(a.y - playerY) < playerRadius + 10 &&
+      a.lane === playerLane
+    ) {
+      if (!a.correct) {
+        gameOver = true;
+        toggleButtons();
+      } else {
+        score++;
+        spawnQuestion();
+      }
+      answers = answers.filter((x) => x !== a);
+    }
+  });
+
+  answers = answers.filter((a) => a.y < canvas.height + 50);
+}
+
+function draw() {
+  drawRoad();
+  drawQuestion();
+  drawAnswers();
+  drawPlayer();
+  drawScore();
+
+  if (gameOver) {
+    drawGameOver();
+  }
+}
+
+let lastTime = 0;
+function gameLoop(time = 0) {
+  const delta = (time - lastTime) / 1000;
+  lastTime = time;
+
+  update(delta);
+  draw();
+
+  if (!gameOver) {
+    requestAnimationFrame(gameLoop);
+  }
+}
+
+function startGame() {
+  gameOver = false;
+  score = 0;
+  currentQuestionIndex = 0;
+  answers = [];
+  playerLane = 0;
+  currentQuestion = "";
+  spawnQuestion();
+  lastTime = 0;
+  gameLoop();
+  toggleButtons();
+}
+
+function toggleButtons() {
+  if (gameOver) {
+    resetBtn.style.display = "inline-block";
+    playBtn.disabled = true;
+  } else {
+    resetBtn.style.display = "none";
+    playBtn.disabled = false;
+  }
+}
+
+window.addEventListener("keydown", (e) => {
+  if (gameOver) return;
+  if (e.key === "ArrowLeft") {
+    playerLane = 0;
+  } else if (e.key === "ArrowRight") {
+    playerLane = 1;
+  }
+});
+
+playBtn.onclick = () => {
+  startGame();
+};
+
+resetBtn.onclick = () => {
+  startGame();
+  resetBtn.style.display = "none";
+  playBtn.disabled = false;
+};
+
+// Show play button initially, reset hidden
+toggleButtons();
+</script>
+</body>
+</html>
